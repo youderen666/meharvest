@@ -296,6 +296,16 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
     // 收割
     // ------------------------------------------------------------------
 
+    /** 假玩家交互收获的结果。 */
+    private enum Probe {
+        /** 没反应，交给原来的拆方块 + 补种逻辑 */
+        NONE,
+        /** 收获成功且方块被保留（多收作物），已经处理完 */
+        KEPT,
+        /** 交互把方块收掉了，需要由调用方补种 */
+        DESTROYED
+    }
+
     /**
      * 用假玩家试一次「右键收获」。
      * <p>
@@ -303,14 +313,15 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
      * {@code PlayerInteractEvent.RightClickBlock} 都会触发 —— 「右键收获」「作物可重复收获」
      * 这一类 mod 基本都挂在其中一条路上。
      * <p>
-     * 只有真的掉出了物品、或者方块状态发生了变化，才算收获成功；这样即使某个 mod 对任何
-     * 右键都返回 SUCCESS，也不会被误判成"收完了"而白扣电。
-     *
-     * @return true 表示已经处理完，调用方不要再走拆方块 + 补种的逻辑
+     * 只有真的掉出了物品、或者方块状态发生了变化，才算有反应；这样即使某个 mod 对任何右键
+     * 都返回 SUCCESS，也不会被误判成"收完了"而白扣电。
+     * <p>
+     * 关键区分：方块**还在**（多收作物，自己会接着长）还是**没了**（一次性作物被交互收走）。
+     * 后者必须回到补种流程，否则地里就空了。
      */
-    private boolean harvestByInteraction(BlockPos pos, BlockState state) {
+    private Probe harvestByInteraction(BlockPos pos, BlockState state, List<ItemStack> outDrops) {
         if (!(level instanceof ServerLevel serverLevel)) {
-            return false;
+            return Probe.NONE;
         }
 
         FakePlayer player = FakePlayerFactory.getMinecraft(serverLevel);
@@ -330,7 +341,7 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
             player.gameMode.useItemOn(player, serverLevel, ItemStack.EMPTY,
                     InteractionHand.MAIN_HAND, hit);
         } catch (Throwable ignored) {
-            return false;
+            return Probe.NONE;
         } finally {
             player.setItemInHand(InteractionHand.MAIN_HAND, previous);
         }
@@ -344,12 +355,63 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
             }
         }
 
-        boolean changed = serverLevel.getBlockState(pos) != state;
+        BlockState after = serverLevel.getBlockState(pos);
+        boolean changed = after != state;
         if (gained.isEmpty() && !changed) {
-            return false;
+            return Probe.NONE;
         }
 
-        for (ItemStack stack : gained) {
+        if (after.is(state.getBlock())) {
+            // 作物还在：多收作物，产物直接入库，收工
+            for (ItemStack stack : gained) {
+                insertOrBuffer(stack);
+            }
+            consumePower();
+            return Probe.KEPT;
+        }
+
+        // 作物被交互拆掉了：产物交给调用方，补种后再入库
+        outDrops.addAll(gained);
+        return Probe.DESTROYED;
+    }
+
+    /**
+     * 方块已经被假玩家的交互收掉（一次性作物），这里只负责补种 + 入库。
+     */
+    private boolean replantAfterInteraction(BlockPos pos, BlockState state, List<ItemStack> drops) {
+        Block block = state.getBlock();
+        CropCompat.Mode mode = CropCompat.modeOf(block);
+
+        if (mode != CropCompat.Mode.HARVEST_ONLY) {
+            Item seed = ReplantHelper.seedFor(block, CropCompat.seedOf(block));
+            if (seed != null) {
+                ItemStack fromDrops = null;
+                for (ItemStack stack : drops) {
+                    if (stack.is(seed)) {
+                        fromDrops = stack;
+                        break;
+                    }
+                }
+
+                boolean replanted;
+                if (fromDrops != null) {
+                    fromDrops.shrink(1);
+                    replanted = true;
+                } else {
+                    replanted = extractSeed(seed);
+                }
+
+                if (replanted) {
+                    BlockState fresh = HarvestRules.copyStructural(state, block.defaultBlockState());
+                    if (fresh.canSurvive(level, pos)) {
+                        level.setBlock(pos, fresh, Block.UPDATE_ALL);
+                    }
+                }
+            }
+        }
+
+        drops.removeIf(ItemStack::isEmpty);
+        for (ItemStack stack : drops) {
             insertOrBuffer(stack);
         }
 
@@ -365,8 +427,14 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
         // 先问游戏自己：这块能不能「不破坏方块」地收（右键收获类 mod、浆果丛等）。
         // 能的话就用它自己的收获结果，不要去拆方块——很多把作物改成可重复收获的 mod
         // 都是挂在这个交互上的，拆方块会绕过它们的逻辑。
-        if (harvestByInteraction(pos, state)) {
+        List<ItemStack> interactionDrops = new ArrayList<>();
+        Probe probe = harvestByInteraction(pos, state, interactionDrops);
+        if (probe == Probe.KEPT) {
             return true;
+        }
+        if (probe == Probe.DESTROYED) {
+            // 交互已经把作物收走了，这里只需要补种
+            return replantAfterInteraction(pos, state, interactionDrops);
         }
 
         List<ItemStack> drops = Block.getDrops(state, (ServerLevel) level, pos, null, null, ItemStack.EMPTY);
