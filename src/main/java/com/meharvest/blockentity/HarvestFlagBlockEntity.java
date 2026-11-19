@@ -19,6 +19,7 @@ import com.meharvest.menu.HarvestFlagMenu;
 import com.meharvest.registry.ModBlockEntities;
 import com.meharvest.registry.ModItems;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -82,10 +83,14 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
     private static final double HARVEST_COST = 6.0;
     private static final double IDLE_POWER = 0.2;
     private static final int REBUILD_PERIOD = 1200;
+    /** 滚动扫描每 tick 检查多少个方块。范围拉满（33x33x7）时约 60 tick 扫完一轮。 */
+    private static final int DISCOVER_BUDGET = 128;
     private static final int VERTICAL_RANGE = 3;
 
     private final IActionSource actionSource = new MachineSource(this);
     private final LongArrayList positions = new LongArrayList();
+    /** 和 positions 同步的成员集合，用来防止滚动扫描时重复加入。 */
+    private final LongOpenHashSet indexed = new LongOpenHashSet();
     private final List<ItemStack> buffer = new ArrayList<>();
     private final BlockPos.MutableBlockPos probe = new BlockPos.MutableBlockPos();
 
@@ -95,6 +100,7 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
     private int cooldown = 20;
     private int misses;
     private int scanCursor;
+    private int discoverCursor;
     private long lastRebuild = -REBUILD_PERIOD;
     private boolean rebuildPending = true;
     private boolean enabled = true;
@@ -209,6 +215,9 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
             }
         }
 
+        // 滚动补索引：新种下的作物不用等周期重建
+        discoverCrops();
+
         // 关机：仍然充电、仍然把缓冲区里的产物送进网络，但不干活
         if (!enabled) {
             cooldown = 20;
@@ -250,7 +259,8 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
 
         int size = positions.size();
         if (size == 0) {
-            cooldown = MAX_INTERVAL;
+            // 索引是空的：滚动扫描很快会把新作物补进来，短暂等待即可
+            cooldown = 20;
             return;
         }
 
@@ -272,7 +282,7 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
 
             BlockState state = level.getBlockState(probe);
             if (!HarvestRules.isCropLike(state)) {
-                positions.removeLong(scanCursor);
+                removePosition(scanCursor);
                 continue;
             }
 
@@ -703,9 +713,10 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
         }
     }
 
-    private void rebuildIndex() {
-        positions.clear();
+    private void rebuildIndex() {        positions.clear();
+        indexed.clear();
         scanCursor = 0;
+        discoverCursor = 0;
         lastRebuild = level.getGameTime();
 
         int r = radius;
@@ -722,9 +733,68 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
                         continue;
                     }
                     if (HarvestRules.isCropLike(level.getBlockState(probe))) {
-                        positions.add(probe.asLong());
+                        addPosition(probe.asLong());
                     }
                 }
+            }
+        }
+    }
+
+    private void addPosition(long packed) {
+        if (indexed.add(packed)) {
+            positions.add(packed);
+        }
+    }
+
+    private void removePosition(int index) {
+        if (index < 0 || index >= positions.size()) {
+            return;
+        }
+        long packed = positions.getLong(index);
+        positions.removeLong(index);
+        indexed.remove(packed);
+    }
+
+    /**
+     * 滚动扫描：每 tick 检查一小片区域，把新种下的作物补进索引。
+     * <p>
+     * 之前只有「加载 / 改半径」和 1200 tick 的周期性全量重建，新种的作物要等一分钟才被
+     * 发现。现在按 {@link #DISCOVER_BUDGET} 每 tick 推进，整片区域几十 tick 就能扫完一轮，
+     * 单 tick 开销是常数，不会因为范围大而卡。
+     */
+    private void discoverCrops() {
+        int r = radius;
+        int side = 2 * r + 1;
+        int minY = Math.max(level.getMinBuildHeight(), worldPosition.getY() - VERTICAL_RANGE);
+        int maxY = Math.min(level.getMaxBuildHeight() - 1, worldPosition.getY() + VERTICAL_RANGE);
+        int height = maxY - minY + 1;
+        if (height <= 0 || side <= 0) {
+            return;
+        }
+
+        int total = side * side * height;
+        if (discoverCursor >= total) {
+            discoverCursor = 0;
+        }
+
+        int budget = Math.min(total, DISCOVER_BUDGET);
+        int centerX = worldPosition.getX();
+        int centerZ = worldPosition.getZ();
+
+        for (int i = 0; i < budget; i++) {
+            int index = discoverCursor;
+            int dx = index % side;
+            int rest = index / side;
+            int dz = rest % side;
+            int dy = rest / side;
+
+            probe.set(centerX + dx - r, minY + dy, centerZ + dz - r);
+            if (level.hasChunkAt(probe) && HarvestRules.isCropLike(level.getBlockState(probe))) {
+                addPosition(probe.asLong());
+            }
+
+            if (++discoverCursor >= total) {
+                discoverCursor = 0;
             }
         }
     }
