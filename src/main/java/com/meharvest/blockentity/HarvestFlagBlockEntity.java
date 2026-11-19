@@ -305,6 +305,9 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
         if (mode == CropCompat.Mode.GRAPE) {
             return harvestVine(pos, state, block, drops);
         }
+        if (mode == CropCompat.Mode.REGROW) {
+            return harvestRegrow(pos, state, drops);
+        }
 
         boolean replanted = false;
         if (mode != CropCompat.Mode.HARVEST_ONLY) {
@@ -442,6 +445,41 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
     /** 从机器内置缓存扣电（不是从整个网络扣）。 */
     private void consumePower() {
         extractAEPower(HARVEST_COST, Actionable.MODULATE, PowerMultiplier.CONFIG);
+    }
+
+    /**
+     * 只摘果、不动本体：把生长状态回退，作物自己接着长。
+     * 甜浆果丛、洞穴藤蔓这类方块拆掉反而损失本体，还要额外消耗一个果实补种。
+     */
+    private boolean harvestRegrow(BlockPos pos, BlockState state, List<ItemStack> drops) {
+        BlockState fresh = state;
+
+        BooleanProperty fruit = HarvestRules.fruitProperty(state);
+        if (fruit != null) {
+            fresh = fresh.setValue(fruit, false);
+        } else {
+            IntegerProperty age = HarvestRules.ageProperty(state);
+            int reset = CropCompat.resetAgeOf(state.getBlock());
+            if (age != null && reset >= 0) {
+                fresh = fresh.setValue(age,
+                        Mth.clamp(reset, HarvestRules.minValue(age), HarvestRules.maxValue(age)));
+            }
+        }
+
+        if (fresh == state) {
+            return false;
+        }
+
+        // 保留原方块，只改状态：不会掉落本体，也不需要补种
+        level.setBlock(pos, fresh, Block.UPDATE_ALL);
+
+        drops.removeIf(ItemStack::isEmpty);
+        for (ItemStack stack : drops) {
+            insertOrBuffer(stack);
+        }
+
+        consumePower();
+        return true;
     }
 
     private boolean extractSeed(Item seed) {

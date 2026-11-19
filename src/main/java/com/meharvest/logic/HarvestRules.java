@@ -49,6 +49,9 @@ public final class HarvestRules {
         if (mode == CropCompat.Mode.GRAPE) {
             return grapeProperty(state) != null;
         }
+        if (mode == CropCompat.Mode.REGROW) {
+            return fruitProperty(state) != null || ageProperty(state) != null;
+        }
         if (mode == CropCompat.Mode.NORMAL) {
             return ageProperty(state) != null || isFruit(state);
         }
@@ -73,7 +76,15 @@ public final class HarvestRules {
         }
         if (mode == CropCompat.Mode.GRAPE) {
             IntegerProperty grape = grapeProperty(state);
-            return grape != null && state.getValue(grape) >= maxAge(grape);
+            return grape != null && state.getValue(grape) >= maxValue(grape);
+        }
+        if (mode == CropCompat.Mode.REGROW) {
+            BooleanProperty fruit = fruitProperty(state);
+            if (fruit != null) {
+                return state.getValue(fruit);
+            }
+            IntegerProperty age = ageProperty(state);
+            return age != null && state.getValue(age) >= maxValue(age);
         }
 
         if (isTallPlant(state)) {
@@ -84,7 +95,7 @@ public final class HarvestRules {
         }
 
         IntegerProperty age = ageProperty(state);
-        return age != null && state.getValue(age) >= maxAge(age);
+        return age != null && state.getValue(age) >= maxValue(age);
     }
 
     public static boolean isTallPlant(BlockState state) {
@@ -115,7 +126,7 @@ public final class HarvestRules {
 
     private static boolean isRiceMature(BlockState state) {
         IntegerProperty age = ageProperty(state);
-        return isRiceBottom(state) && age != null && state.getValue(age) >= maxAge(age);
+        return isRiceBottom(state) && age != null && state.getValue(age) >= maxValue(age);
     }
 
     /**
@@ -158,6 +169,15 @@ public final class HarvestRules {
         return CropCompat.grapeProperty(state);
     }
 
+    /**
+     * REGROW 模式下代表“果还在”的布尔属性（berries / has_fruit / ripe …）。
+     */
+    @Nullable
+    public static BooleanProperty fruitProperty(BlockState state) {
+        String name = CropCompat.fruitFlagOf(state.getBlock());
+        return name == null ? null : boolProperty(state, name);
+    }
+
     @Nullable
     public static BooleanProperty boolProperty(BlockState state, String name) {
         for (Property<?> property : state.getProperties()) {
@@ -178,7 +198,7 @@ public final class HarvestRules {
         return null;
     }
 
-    private static int maxAge(IntegerProperty property) {
+    public static int maxValue(IntegerProperty property) {
         int max = 0;
         for (int value : property.getPossibleValues()) {
             max = Math.max(max, value);
