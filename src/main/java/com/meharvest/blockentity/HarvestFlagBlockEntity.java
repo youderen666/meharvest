@@ -27,7 +27,10 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.MenuProvider;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -38,13 +41,20 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.common.util.FakePlayerFactory;
 import net.minecraftforge.common.util.LazyOptional;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 /**
  * ME 农收机。
@@ -286,9 +296,77 @@ public class HarvestFlagBlockEntity extends AENetworkPowerBlockEntity implements
     // 收割
     // ------------------------------------------------------------------
 
+    /**
+     * 用假玩家试一次「右键收获」。
+     * <p>
+     * 走 {@code ServerPlayerGameMode#useItemOn}，所以方块自己的 {@code use()} 和 Forge 的
+     * {@code PlayerInteractEvent.RightClickBlock} 都会触发 —— 「右键收获」「作物可重复收获」
+     * 这一类 mod 基本都挂在其中一条路上。
+     * <p>
+     * 只有真的掉出了物品、或者方块状态发生了变化，才算收获成功；这样即使某个 mod 对任何
+     * 右键都返回 SUCCESS，也不会被误判成"收完了"而白扣电。
+     *
+     * @return true 表示已经处理完，调用方不要再走拆方块 + 补种的逻辑
+     */
+    private boolean harvestByInteraction(BlockPos pos, BlockState state) {
+        if (!(level instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+
+        FakePlayer player = FakePlayerFactory.getMinecraft(serverLevel);
+        AABB area = new AABB(pos).inflate(1.5D);
+
+        Set<Integer> existing = new HashSet<>();
+        for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, area)) {
+            existing.add(entity.getId());
+        }
+
+        Vec3 center = Vec3.atCenterOf(pos);
+        ItemStack previous = player.getMainHandItem();
+        try {
+            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            player.moveTo(center.x, center.y, center.z, 0.0F, 0.0F);
+            BlockHitResult hit = new BlockHitResult(center, Direction.UP, pos, false);
+            player.gameMode.useItemOn(player, serverLevel, ItemStack.EMPTY,
+                    InteractionHand.MAIN_HAND, hit);
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            player.setItemInHand(InteractionHand.MAIN_HAND, previous);
+        }
+
+        // 收获产生的新掉落物：收走，不让它们躺在地上
+        List<ItemStack> gained = new ArrayList<>();
+        for (ItemEntity entity : serverLevel.getEntitiesOfClass(ItemEntity.class, area)) {
+            if (!existing.contains(entity.getId())) {
+                gained.add(entity.getItem().copy());
+                entity.discard();
+            }
+        }
+
+        boolean changed = serverLevel.getBlockState(pos) != state;
+        if (gained.isEmpty() && !changed) {
+            return false;
+        }
+
+        for (ItemStack stack : gained) {
+            insertOrBuffer(stack);
+        }
+
+        consumePower();
+        return true;
+    }
+
     private boolean harvest(BlockPos pos, BlockState state) {
         if (getInternalCurrentPower() < HARVEST_COST) {
             return false;
+        }
+
+        // 先问游戏自己：这块能不能「不破坏方块」地收（右键收获类 mod、浆果丛等）。
+        // 能的话就用它自己的收获结果，不要去拆方块——很多把作物改成可重复收获的 mod
+        // 都是挂在这个交互上的，拆方块会绕过它们的逻辑。
+        if (harvestByInteraction(pos, state)) {
+            return true;
         }
 
         List<ItemStack> drops = Block.getDrops(state, (ServerLevel) level, pos, null, null, ItemStack.EMPTY);
