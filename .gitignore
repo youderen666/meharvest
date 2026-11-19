@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# Forge dev runs
+run/
+run-data/
+logs/
+crash-reports/
+
+# misc
+*.log
+*.bak
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "meharvest:block/me_harvest_flag" },
+    "facing=east": { "model": "meharvest:block/me_harvest_flag", "y": 90 },
+    "facing=south": { "model": "meharvest:block/me_harvest_flag", "y": 180 },
+    "facing=west": { "model": "meharvest:block/me_harvest_flag", "y": 270 }
+  }
+}
