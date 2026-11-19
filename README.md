@@ -1,5 +1,11 @@
 # ME 农收机（ME Harvest Machine）
 
+![Minecraft](https://img.shields.io/badge/Minecraft-1.20.1-green)
+![Forge](https://img.shields.io/badge/Forge-47.x-orange)
+![AE2](https://img.shields.io/badge/AE2-15.x-blue)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+[![Release](https://img.shields.io/github/v/release/youderen666/meharvest)](https://github.com/youderen666/meharvest/releases)
+
 一个 **Applied Energistics 2（AE2）** 附属模组：在机器周围自动收割成熟作物并原地补种，产物直接送进 ME 网络。
 
 - Minecraft **1.20.1**
