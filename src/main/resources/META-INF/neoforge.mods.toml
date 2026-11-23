@@ -1,0 +1,35 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="meharvest"
+version="1.0.0"
+displayName="ME 农收机"
+authors="meharvest"
+description='''
+一个 AE2 附属方块：自动收割范围内成熟作物并原地补种，产物直接进入 ME 网络。
+接入 ME 网络即可用 AE 供电，也支持 FE 能量线缆充电；内置 10 kAE 电量缓存。
+待机功耗 0.2 AE/t，单株消耗 6 AE，内置位置索引与自适应检查间隔。
+'''
+
+[[dependencies.meharvest]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.169,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.meharvest]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1]"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.meharvest]]
+    modId="ae2"
+    type="required"
+    versionRange="[19.2.20,)"
+    ordering="AFTER"
+    side="BOTH"

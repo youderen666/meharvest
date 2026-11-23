@@ -1,0 +1,23 @@
+{
+  "block.meharvest.me_harvest_flag": "ME Harvest Machine",
+  "item.meharvest.me_harvest_flag": "ME Harvest Machine",
+  "gui.meharvest.radius": "Radius",
+  "gui.meharvest.interval": "Check interval",
+  "gui.meharvest.batch": "Max per cycle",
+  "gui.meharvest.toggle": "Power switch",
+  "gui.meharvest.toggle.on": "Running",
+  "gui.meharvest.toggle.off": "Stopped",
+  "gui.meharvest.power": "Stored: %s / %s",
+  "gui.meharvest.status": "Status: %s",
+  "gui.meharvest.status.nonet": "Not connected",
+  "gui.meharvest.status.offline": "Offline (no channel)",
+  "gui.meharvest.status.nopower": "Online, out of power",
+  "gui.meharvest.status.disabled": "Stopped (switch off)",
+  "gui.meharvest.status.online": "Online",
+  "gui.meharvest.index": "Indexed crops: %s",
+  "gui.meharvest.buffer": "Buffer: %s / 9",
+  "tooltip.meharvest.me_harvest_flag.1": "Harvests mature crops in range and replants them.",
+  "tooltip.meharvest.me_harvest_flag.2": "Drops go straight into the ME network; seeds are pulled from it if needed.",
+  "tooltip.meharvest.me_harvest_flag.3": "Runs on ME network power or FE cables; 10 kAE internal buffer.",
+  "tooltip.meharvest.me_harvest_flag.4": "Handles multi-block and vine crops from Farmer's Delight and Kaleidoscope Cookery (rice, panicles, grapevines)."
+}

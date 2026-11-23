@@ -1,0 +1,72 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.78'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = "${mod_id}-${minecraft_version}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+repositories {
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven { url = 'https://maven.aliyun.com/repository/public' }
+    mavenCentral()
+}
+
+neoForge {
+    version = project.neo_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArguments.addAll '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // AE2 1.21.1 的 jar 放在 libs/ 里作为编译依赖（AE2 自己的 maven 在部分网络下不可达）
+    compileOnly files("libs/appliedenergistics2-${ae2_version}.jar")
+}
+
+tasks.named('compileJava') {
+    doFirst {
+        def ae2Jar = file("libs/appliedenergistics2-${ae2_version}.jar")
+        if (!ae2Jar.exists()) {
+            throw new GradleException("缺少 ${ae2Jar.name}：请从 Modrinth 下载 AE2 ${ae2_version}（1.21.1 / NeoForge）放进 libs/ 目录")
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes([
+                'Specification-Title'    : mod_id,
+                'Specification-Vendor'   : mod_authors,
+                'Specification-Version'  : '1',
+                'Implementation-Title'   : project.name,
+                'Implementation-Version' : project.version,
+                'Implementation-Vendor'  : mod_authors
+        ])
+    }
+}

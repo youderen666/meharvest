@@ -1,0 +1,23 @@
+{
+  "block.meharvest.me_harvest_flag": "ME 农收机",
+  "item.meharvest.me_harvest_flag": "ME 农收机",
+  "gui.meharvest.radius": "范围半径",
+  "gui.meharvest.interval": "检查间隔",
+  "gui.meharvest.batch": "每轮最多",
+  "gui.meharvest.toggle": "运行开关",
+  "gui.meharvest.toggle.on": "运行中",
+  "gui.meharvest.toggle.off": "已停止",
+  "gui.meharvest.power": "已存储：%s / %s",
+  "gui.meharvest.status": "状态：%s",
+  "gui.meharvest.status.nonet": "未接入 ME 网络",
+  "gui.meharvest.status.offline": "设备离线（缺频道）",
+  "gui.meharvest.status.nopower": "设备在线，电量不足",
+  "gui.meharvest.status.disabled": "已停止（开关关闭）",
+  "gui.meharvest.status.online": "设备在线",
+  "gui.meharvest.index": "已索引作物：%s",
+  "gui.meharvest.buffer": "缓冲区：%s / 9",
+  "tooltip.meharvest.me_harvest_flag.1": "自动收割范围内成熟作物并原地补种。",
+  "tooltip.meharvest.me_harvest_flag.2": "产物直接送入 ME 网络，缺种子时从网络提取。",
+  "tooltip.meharvest.me_harvest_flag.3": "支持 ME 网络供电，也支持 FE 能量线缆充电；内置 10 kAE 缓存。",
+  "tooltip.meharvest.me_harvest_flag.4": "兼容农夫乐事、森罗物语：厨房的多格作物与藤蔓作物（水稻、稻穗、葡萄藤等）。"
+}

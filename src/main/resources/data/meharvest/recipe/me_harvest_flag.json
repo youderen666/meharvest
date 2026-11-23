@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "QFQ",
+    "FHF",
+    "QSQ"
+  ],
+  "key": {
+    "Q": { "item": "ae2:quartz_glass" },
+    "F": { "item": "ae2:fluix_crystal" },
+    "H": { "item": "minecraft:hopper" },
+    "S": { "item": "minecraft:wheat_seeds" }
+  },
+  "result": {
+    "id": "meharvest:me_harvest_flag",
+    "count": 1
+  }
+}
